@@ -48,3 +48,4 @@ shuttle-test = ["dep:shuttle"]
 elf = "0.0.10"
 json = "0.12"
 test_utils = { path = "test_utils/" }
+lean_impl = { path = "lean_impl/" }

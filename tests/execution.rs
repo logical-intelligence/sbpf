@@ -33,6 +33,7 @@ use test_utils::{
     assert_error, create_vm, syscalls, test_interpreter_and_jit, test_interpreter_and_jit_asm,
     test_interpreter_and_jit_elf, test_syscall_asm, TestContextObject, PROG_TCP_PORT_80,
     TCP_SACK_ASM, TCP_SACK_MATCH, TCP_SACK_NOMATCH,
+    my_assert_eq, my_assert_failed,
 };
 
 // BPF_ALU32_LOAD : Arithmetic and Logic
@@ -4216,5 +4217,45 @@ fn test_symbol_relocation() {
         ),
         TestContextObject::new(7),
         ProgramResult::Ok(0),
+    );
+}
+
+#[test]
+fn test_mul64_imm_signed() {
+    let config = Config {
+        enabled_sbpf_versions: SBPFVersion::V0..=SBPFVersion::V0,
+        ..Config::default()
+    };
+    test_interpreter_and_jit_asm!(
+        "
+        lddw r1, 0xd3a3c2e1b224e455
+        mul64 r1, -32321
+        mov64 r0, r1
+        exit",
+        config,
+        [],
+        TestContextObject::new(4),
+        ProgramResult::Ok(12213884250725822571),
+    );
+}
+
+#[test]
+fn test_lmul64_imm_signed() {
+    let config = Config {
+        enabled_sbpf_versions: SBPFVersion::V3..=SBPFVersion::V3,
+        ..Config::default()
+    };
+    test_interpreter_and_jit_asm!(
+        "
+        add64 r10, 0
+        mov32 r1, -0x4ddb1bab
+        hor64 r1, -0x2c5c3d1f
+        lmul64 r1, -32321
+        mov64 r0, r1
+        exit",
+        config,
+        [],
+        TestContextObject::new(6),
+        ProgramResult::Ok(12213884250725822571),
     );
 }

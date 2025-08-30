@@ -1,0 +1,11 @@
+[package]
+name = "lean_impl"
+version = "0.1.0"
+authors = ["Pavel Klimov <pavel.klimov@logiqai.com>"]
+edition = "2024"
+publish = false
+
+[dependencies]
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.143"
+
