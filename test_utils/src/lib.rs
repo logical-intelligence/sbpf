@@ -283,6 +283,51 @@ macro_rules! assert_error {
     }
 }
 
+pub fn my_assert_failed(
+    left: &dyn fmt::Debug,
+    right: &dyn fmt::Debug,
+    args: Option<fmt::Arguments<'_>>,
+) {
+    match args {
+        Some(args) => println!(
+            r#"assertion failed: `(left == right)`
+  left: `{:?}`,
+ right: `{:?}`: {}"#,
+            left, right, args
+        ),
+        None => println!(
+            r#"assertion failed: `(left == right)`
+  left: `{:?}`,
+ right: `{:?}`"#,
+            left, right,
+        ),
+    }
+}
+
+use std::fmt;
+
+#[macro_export]
+macro_rules! my_assert_eq {
+    ($left:expr, $right:expr $(,)?) => {
+        match (&$left, &$right) {
+            (left_val, right_val) => {
+                if !(*left_val == *right_val) {
+                    my_assert_failed(&*left_val, &*right_val, None);
+                }
+            }
+        }
+    };
+    ($left:expr, $right:expr, $($arg:tt)+) => {
+        match (&$left, &$right) {
+            (left_val, right_val) => {
+                if !(*left_val == *right_val) {
+                    my_assert_failed(&*left_val, &*right_val, Option::Some(std::format_args!($($arg)+)));
+                }
+            }
+        }
+    };
+}
+
 #[macro_export]
 macro_rules! test_interpreter_and_jit {
     (override_budget => $override_budget:expr, $executable:expr, $mem:tt, $context_object:expr $(,)?) => {{
@@ -316,6 +361,38 @@ macro_rules! test_interpreter_and_jit {
                 vm.context_object_pointer.clone(),
             )
         };
+        let (code_vaddr, code_bytes) = $executable.get_text_bytes();
+        let mut lean_vm_state: Result<lean_impl::LeanVmState, String> = Err("".to_string());
+        unsafe {
+            let version: SBPFVersion = $executable.get_sbpf_version();
+            let version_num = match version {
+                SBPFVersion::V0 => 0,
+                SBPFVersion::V1 => 1,
+                SBPFVersion::V2 => 2,
+                SBPFVersion::V3 => 3,
+                SBPFVersion::V4 => 4,
+                _ => 5,
+            };
+            println!("{:?} {}", version, version_num);
+            lean_vm_state = lean_impl::lean_test(code_bytes.to_vec(), $mem.to_vec(), code_vaddr, version_num);
+        }
+        match lean_vm_state {
+            Ok(vm_state) => {
+                match vm_state.regs.get(0) {
+                    Some(&r0) => {
+                        let result_lean = ProgramResult::Ok(r0);
+                        my_assert_eq!(
+                            format!("{:?}", result_lean), format!("{:?}", result_interpreter),
+                            "Unexpected lean result",
+                        );
+                    }
+                    None => { my_assert_eq!(0, 1, "Unexpected lean fail"); }
+                }
+            }
+            Err(err) => {
+                { my_assert_eq!(0, 1, "Unexpected lean error {}", err); }
+            }
+        }
         #[cfg(all(feature = "jit", not(target_os = "windows"), target_arch = "x86_64"))]
         {
             #[allow(unused_mut)]
