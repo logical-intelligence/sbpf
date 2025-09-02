@@ -134,12 +134,22 @@ pub fn lean_initialize_once() {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct FunctionRegistryEntry
+{
+    pub key: u32,
+    pub symbol: Vec<u8>,
+    pub address: u64,
+}
+
+#[derive(Serialize, Deserialize)]
 struct Request {
     code: Vec<u8>,
     input: Vec<u8>,
     pc: String,
     version: u8,
     remaining_steps: String,
+    max_call_depth: String,
+    function_registry: Vec<FunctionRegistryEntry>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -159,7 +169,8 @@ pub struct LeanVmState {
     pub program_result: String,
 }
 
-pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, pc: u64, version: u8, remaining_steps: u64) -> Result<LeanVmState, String> {
+pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, pc: u64, version: u8, remaining_steps: u64,
+                        max_call_depth: usize, function_registry: Vec<FunctionRegistryEntry>) -> Result<LeanVmState, String> {
     lean_initialize_once();
     let request = Request {
         code: code,
@@ -167,6 +178,8 @@ pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, pc: u64, version: u8, rem
         pc: pc.to_string(),
         version: version,
         remaining_steps: remaining_steps.to_string(),
+        max_call_depth: max_call_depth.to_string(),
+        function_registry: function_registry,
     };
     match serde_json::to_string(&request) {
         Ok(json_string) => {
