@@ -283,51 +283,6 @@ macro_rules! assert_error {
     }
 }
 
-pub fn my_assert_failed(
-    left: &dyn fmt::Debug,
-    right: &dyn fmt::Debug,
-    args: Option<fmt::Arguments<'_>>,
-) {
-    match args {
-        Some(args) => println!(
-            r#"assertion failed: `(left == right)`
-  left: `{:?}`,
- right: `{:?}`: {}"#,
-            left, right, args
-        ),
-        None => println!(
-            r#"assertion failed: `(left == right)`
-  left: `{:?}`,
- right: `{:?}`"#,
-            left, right,
-        ),
-    }
-}
-
-use std::fmt;
-
-#[macro_export]
-macro_rules! my_assert_eq {
-    ($left:expr, $right:expr $(,)?) => {
-        match (&$left, &$right) {
-            (left_val, right_val) => {
-                if !(*left_val == *right_val) {
-                    my_assert_failed(&*left_val, &*right_val, None);
-                }
-            }
-        }
-    };
-    ($left:expr, $right:expr, $($arg:tt)+) => {
-        match (&$left, &$right) {
-            (left_val, right_val) => {
-                if !(*left_val == *right_val) {
-                    my_assert_failed(&*left_val, &*right_val, Option::Some(std::format_args!($($arg)+)));
-                }
-            }
-        }
-    };
-}
-
 #[macro_export]
 macro_rules! test_interpreter_and_jit {
     (override_budget => $override_budget:expr, $executable:expr, $mem:tt, $context_object:expr $(,)?) => {{
@@ -374,23 +329,18 @@ macro_rules! test_interpreter_and_jit {
                 _ => 5,
             };
             println!("{:?} {}", version, version_num);
-            lean_vm_state = lean_impl::lean_test(code_bytes.to_vec(), $mem.to_vec(), code_vaddr, version_num);
+            lean_vm_state = lean_impl::lean_test(code_bytes.to_vec(), $mem.to_vec(), code_vaddr, version_num, context_object.remaining);
         }
         match lean_vm_state {
             Ok(vm_state) => {
-                match vm_state.regs.get(0) {
-                    Some(&r0) => {
-                        let result_lean = ProgramResult::Ok(r0);
-                        my_assert_eq!(
-                            format!("{:?}", result_lean), format!("{:?}", result_interpreter),
-                            "Unexpected lean result",
-                        );
-                    }
-                    None => { my_assert_eq!(0, 1, "Unexpected lean fail"); }
-                }
+                let result_lean = vm_state.program_result;
+                assert_eq!(
+                    format!("{}", result_lean), format!("{:?}", result_interpreter),
+                    "Unexpected lean result",
+                );
             }
             Err(err) => {
-                { my_assert_eq!(0, 1, "Unexpected lean error {}", err); }
+                { assert_eq!(0, 1, "Unexpected lean error {}", err); }
             }
         }
         #[cfg(all(feature = "jit", not(target_os = "windows"), target_arch = "x86_64"))]
@@ -501,6 +451,35 @@ macro_rules! test_interpreter_and_jit_asm {
         #[allow(unused_mut)]
         {
             test_interpreter_and_jit_asm!(
+                $source,
+                Config::default(),
+                $mem,
+                $context_object,
+                $expected_result
+            );
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! test_interpreter_and_jit_raw {
+    ($source:expr, $config:expr, $mem:expr, $context_object:expr, $expected_result:expr $(,)?) => {
+        #[allow(unused_mut)]
+        {
+            let mut config = $config;
+            config.enable_instruction_tracing = true;
+            let loader = Arc::new(BuiltinProgram::new_loader(config));
+            let sbpf_version = loader.get_config().enabled_sbpf_versions.end();
+            let mut function_registry = FunctionRegistry::default();
+            let mut executable = Executable::from_text_bytes(&$source, loader.clone(), sbpf_version.clone(), function_registry)
+                .map_err(|err| format!("Executable constructor {err:?}")).unwrap();
+            test_interpreter_and_jit!(executable, $mem, $context_object, $expected_result);
+        }
+    };
+    ($source:expr, $mem:expr, $context_object:expr, $expected_result:expr $(,)?) => {
+        #[allow(unused_mut)]
+        {
+            test_interpreter_and_jit_raw!(
                 $source,
                 Config::default(),
                 $mem,

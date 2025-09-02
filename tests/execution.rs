@@ -30,10 +30,9 @@ use solana_sbpf::{
 };
 use std::{fs::File, io::Read, sync::Arc};
 use test_utils::{
-    assert_error, create_vm, syscalls, test_interpreter_and_jit, test_interpreter_and_jit_asm,
+    assert_error, create_vm, syscalls, test_interpreter_and_jit, test_interpreter_and_jit_asm, test_interpreter_and_jit_raw,
     test_interpreter_and_jit_elf, test_syscall_asm, TestContextObject, PROG_TCP_PORT_80,
     TCP_SACK_ASM, TCP_SACK_MATCH, TCP_SACK_NOMATCH,
-    my_assert_eq, my_assert_failed,
 };
 
 // BPF_ALU32_LOAD : Arithmetic and Logic
@@ -4257,5 +4256,23 @@ fn test_lmul64_imm_signed() {
         [],
         TestContextObject::new(6),
         ProgramResult::Ok(12213884250725822571),
+    );
+}
+
+#[test]
+#[should_panic(expected = "VerifierError(UnknownOpCode(1, 0))")]
+fn test_my_unknown_opcode() {
+    let config = Config {
+        enabled_sbpf_versions: SBPFVersion::V0..=SBPFVersion::V0,
+        ..Config::default()
+    };
+    test_interpreter_and_jit_raw!(
+        [
+        1,2,3,4,5,6,7,8,
+        ],
+        config,
+        [],
+        TestContextObject::new(6),
+        ProgramResult::Ok(0), // should panic, look in the test header
     );
 }
