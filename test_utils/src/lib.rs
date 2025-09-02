@@ -329,7 +329,12 @@ macro_rules! test_interpreter_and_jit {
                 _ => 5,
             };
             println!("{:?} {}", version, version_num);
-            lean_vm_state = lean_impl::lean_test(code_bytes.to_vec(), $mem.to_vec(), code_vaddr, version_num, context_object.remaining);
+            let function_registry_vec = $executable.get_function_registry().iter().map(
+                |(key, (symbol, address))|
+                    lean_impl::FunctionRegistryEntry { key : key, symbol : symbol.to_vec(), address : address as u64 }
+                ).collect();
+            lean_vm_state = lean_impl::lean_test(code_bytes.to_vec(), $mem.to_vec(), code_vaddr, version_num, context_object.remaining,
+                $executable.get_config().max_call_depth, function_registry_vec);
         }
         match lean_vm_state {
             Ok(vm_state) => {
