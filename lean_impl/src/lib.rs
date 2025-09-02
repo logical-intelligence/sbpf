@@ -139,6 +139,7 @@ struct Request {
     input: Vec<u8>,
     pc: String,
     version: u8,
+    remaining_steps: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -146,7 +147,7 @@ struct Response {
     status: String,
     regs : Vec<String>,
     pc : String,
-    error : bool,
+    program_result : String,
     halted : bool,
 }
 
@@ -155,16 +156,17 @@ pub struct LeanVmState {
     pub regs: Vec<u64>,
     pub pc: u64,
     pub halted: bool,
-    pub error: bool,
+    pub program_result: String,
 }
 
-pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, pc: u64, version: u8) -> Result<LeanVmState, String> {
+pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, pc: u64, version: u8, remaining_steps: u64) -> Result<LeanVmState, String> {
     lean_initialize_once();
     let request = Request {
         code: code,
         input: input.clone(),
         pc: pc.to_string(),
         version: version,
+        remaining_steps: remaining_steps.to_string(),
     };
     match serde_json::to_string(&request) {
         Ok(json_string) => {
@@ -182,7 +184,7 @@ pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, pc: u64, version: u8) -> 
                     regs: response.regs.iter().map(|s| s.parse::<u64>().unwrap_or_else(|_| 0)).collect(),
                     pc: response.pc.parse::<u64>().unwrap_or_else(|_| 0),
                     halted: response.halted,
-                    error: response.error,
+                    program_result: response.program_result,
                 })
             }
         }
