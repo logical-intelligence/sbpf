@@ -138,7 +138,7 @@ pub struct FunctionRegistryEntry
 {
     pub key: u32,
     pub symbol: Vec<u8>,
-    pub address: u64,
+    pub address: String,
 }
 
 #[derive(Serialize, Deserialize)]
