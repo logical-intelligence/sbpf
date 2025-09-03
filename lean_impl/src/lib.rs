@@ -145,6 +145,7 @@ pub struct FunctionRegistryEntry
 struct Request {
     code: Vec<u8>,
     input: Vec<u8>,
+    code_vaddr: String,
     pc: String,
     version: u8,
     remaining_steps: String,
@@ -169,12 +170,13 @@ pub struct LeanVmState {
     pub program_result: String,
 }
 
-pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, pc: u64, version: u8, remaining_steps: u64,
+pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, code_vaddr: u64, pc: u64, version: u8, remaining_steps: u64,
                         max_call_depth: usize, function_registry: Vec<FunctionRegistryEntry>) -> Result<LeanVmState, String> {
     lean_initialize_once();
     let request = Request {
         code: code,
         input: input.clone(),
+        code_vaddr: code_vaddr.to_string(),
         pc: pc.to_string(),
         version: version,
         remaining_steps: remaining_steps.to_string(),
