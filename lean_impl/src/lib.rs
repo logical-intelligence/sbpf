@@ -19,7 +19,7 @@ pub struct lean_string_object {
     pub m_data: c_char, // char []
 }
 
-const LeanString : i32 = 249;
+const LEAN_STRING_PTR_TAG: u8 = 249;
 
 fn lean_box(n: usize) -> *mut c_void {
     ((n << 1) | 1) as *mut c_void
@@ -42,7 +42,7 @@ fn lean_is_scalar(p: *const c_void) -> bool {
 
 unsafe fn lean_is_string(p: *const c_void) -> bool {
     unsafe {
-        lean_ptr_tag(p) == LeanString as u8
+        lean_ptr_tag(p) == LEAN_STRING_PTR_TAG
     }
 }
 
@@ -145,7 +145,9 @@ pub struct FunctionRegistryEntry
 struct Request {
     code: Vec<u8>,
     input: Vec<u8>,
+    rodata: Vec<u8>,
     code_vaddr: String,
+    rodata_vaddr: String,
     pc: String,
     version: u8,
     remaining_steps: String,
@@ -172,7 +174,7 @@ pub struct LeanVmState {
     pub program_result: String,
 }
 
-pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, code_vaddr: u64, pc: u64, version: u8, remaining_steps: u64,
+pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, rodata: Vec<u8>, code_vaddr: u64, rodata_vaddr: u64, pc: u64, version: u8, remaining_steps: u64,
                         max_call_depth: u64, stack_len: u64,
                         function_registry: Vec<FunctionRegistryEntry>,  loader_function_registry: Vec<FunctionRegistryEntry>)
                         -> Result<LeanVmState, String> {
@@ -180,7 +182,9 @@ pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, code_vaddr: u64, pc: u64,
     let request = Request {
         code: code,
         input: input.clone(),
+        rodata: rodata,
         code_vaddr: code_vaddr.to_string(),
+        rodata_vaddr : rodata_vaddr.to_string(),
         pc: pc.to_string(),
         version: version,
         remaining_steps: remaining_steps.to_string(),
