@@ -161,6 +161,7 @@ struct Request {
 struct Response {
     status: String,
     regs : Vec<String>,
+    memory : Vec<u8>,
     pc : String,
     program_result : String,
     halted : bool,
@@ -169,6 +170,7 @@ struct Response {
 pub struct LeanVmState {
     pub input: Vec<u8>,
     pub regs: Vec<u64>,
+    pub memory : Vec<u8>,
     pub pc: u64,
     pub halted: bool,
     pub program_result: String,
@@ -196,17 +198,18 @@ pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, rodata: Vec<u8>, code_vad
     match serde_json::to_string(&request) {
         Ok(json_string) => {
             unsafe {
-                println!("{}", json_string);
+                // println!("{}", json_string);
                 let request_json = CString::new(json_string).expect("failed to make CString");
                 let lean_request_json = lean_mk_string(request_json.as_ptr());
                 let lean_response_json = test_request_response(lean_request_json);
                 let response_json = CStr::from_ptr(lean_string_cstr(lean_response_json)).to_str().expect("Invalid UTF-8");
-                println!("Response.json {}", response_json);
+                // println!("Response.json {}", response_json);
                 let response : Response = serde_json::from_str(response_json).expect("failed to json deserialize");
-                println!("Response.status = {}", response.status);
+                // println!("Response.status = {}", response.status);
                 Ok(LeanVmState {
                     input: input,
                     regs: response.regs.iter().map(|s| s.parse::<u64>().unwrap_or_else(|_| 0)).collect(),
+                    memory: response.memory.clone(),
                     pc: response.pc.parse::<u64>().unwrap_or_else(|_| 0),
                     halted: response.halted,
                     program_result: response.program_result,

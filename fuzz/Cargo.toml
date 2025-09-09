@@ -14,6 +14,8 @@ libfuzzer-sys = "0.4"
 num-traits = "0.2"
 rayon = "1.5"
 test_utils = { path = "../test_utils/" }
+lean_impl = { path = "../lean_impl" }
+
 
 [dependencies.solana-sbpf]
 path = ".."
@@ -53,5 +55,23 @@ doc = false
 [[bin]]
 name = "verify-semantic-aware"
 path = "fuzz_targets/verify_semantic_aware.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "smart_lean_diff"
+path = "fuzz_targets/smart_lean_diff.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "smart_lean_diff_semantic"
+path = "fuzz_targets/smart_lean_diff_semantic.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "dumb_lean_diff"
+path = "fuzz_targets/dumb_lean_diff.rs"
 test = false
 doc = false

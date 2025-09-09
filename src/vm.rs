@@ -397,6 +397,60 @@ impl<'a, C: ContextObject> EbpfVm<'a, C> {
         (instruction_count, result)
     }
 
+    pub fn execute_program_with_regs(
+        &mut self,
+        executable: &Executable<C>,
+        interpreted: bool,
+    ) -> (u64, ProgramResult, Option<Vec<u64>>) {
+        debug_assert!(Arc::ptr_eq(&self.loader, executable.get_loader()));
+        self.registers[11] = executable.get_entrypoint_instruction_offset() as u64;
+        let config = executable.get_config();
+        let initial_insn_count = self.context_object_pointer.get_remaining();
+        self.previous_instruction_meter = initial_insn_count;
+        self.due_insn_count = 0;
+        self.program_result = ProgramResult::Ok(0);
+        let regs = if interpreted {
+            #[cfg(feature = "debugger")]
+            let debug_port = self.debug_port.clone();
+            let mut interpreter = Interpreter::new(self, executable, self.registers);
+            #[cfg(feature = "debugger")]
+            if let Some(debug_port) = debug_port {
+                crate::debugger::execute(&mut interpreter, debug_port);
+            } else {
+                while interpreter.step() {}
+            }
+            #[cfg(not(feature = "debugger"))]
+            while interpreter.step() {}
+            Some(interpreter.reg)
+        } else {
+            #[cfg(all(feature = "jit", not(target_os = "windows"), target_arch = "x86_64"))]
+            {
+                let compiled_program = match executable
+                    .get_compiled_program()
+                    .ok_or_else(|| EbpfError::JitNotCompiled)
+                {
+                    Ok(compiled_program) => compiled_program,
+                    Err(error) => return (0, ProgramResult::Err(error), vec![].into()),
+                };
+                compiled_program.invoke(config, self, self.registers);
+            }
+            #[cfg(not(all(feature = "jit", not(target_os = "windows"), target_arch = "x86_64")))]
+            {
+                return (0, ProgramResult::Err(EbpfError::JitNotCompiled));
+            }
+            None
+        };
+        let instruction_count = if config.enable_instruction_meter {
+            self.context_object_pointer.consume(self.due_insn_count);
+            initial_insn_count.saturating_sub(self.context_object_pointer.get_remaining())
+        } else {
+            0
+        };
+        let mut result = ProgramResult::Ok(0);
+        std::mem::swap(&mut result, &mut self.program_result);
+        (instruction_count, result, regs.map(|regs| regs.into()))
+    }
+
     /// Invokes a built-in function
     pub fn invoke_function(&mut self, function: BuiltinFunction<C>) {
         function(
