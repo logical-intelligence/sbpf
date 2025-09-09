@@ -2,7 +2,12 @@ use std::mem::size_of;
 
 use arbitrary::{Arbitrary, Unstructured};
 
-use solana_sbpf::vm::Config;
+use solana_sbpf::{
+    vm::Config,
+    disassembler,
+    ebpf,
+    elf::Executable,
+};
 
 #[derive(Debug)]
 pub struct ConfigTemplate {
@@ -60,4 +65,44 @@ impl From<ConfigTemplate> for Config {
             },
         }
     }
+}
+
+
+pub fn eprintln_disassembly<T: solana_sbpf::vm::ContextObject>(executable: &Executable<T>) {
+    let (code_vaddr, code_bytes) = executable.get_text_bytes();
+    eprintln!("=== DISASSEMBLY ===");
+    eprintln!("Code virtual address: 0x{:x}", code_vaddr);
+    eprintln!("Code size: {} bytes", code_bytes.len());
+    let cfg_nodes = std::collections::BTreeMap::new();
+    let mut pc = 0usize;
+    while pc < code_bytes.len() {
+        if pc + 8 <= code_bytes.len() {
+            let insn_bytes = &code_bytes[pc..pc + 8];
+            let insn_u64 = u64::from_le_bytes([
+                insn_bytes[0], insn_bytes[1], insn_bytes[2], insn_bytes[3],
+                insn_bytes[4], insn_bytes[5], insn_bytes[6], insn_bytes[7],
+            ]);
+            let insn = ebpf::Insn {
+                opc: (insn_u64 & 0xff) as u8,
+                dst: ((insn_u64 >> 8) & 0xf) as u8,
+                src: ((insn_u64 >> 12) & 0xf) as u8,
+                off: ((insn_u64 >> 16) & 0xffff) as i16,
+                imm: (insn_u64 >> 32) as i64,
+                ptr: pc,
+            };
+            let disassembly = disassembler::disassemble_instruction(
+                &insn,
+                pc / 8,
+                &cfg_nodes,
+                executable.get_function_registry(),
+                executable.get_loader(),
+                executable.get_sbpf_version(),
+            );
+            eprintln!("0x{:04x}: {}", pc, disassembly);
+            pc += 8;
+        } else {
+            break;
+        }
+    }
+    eprintln!("==================");
 }
