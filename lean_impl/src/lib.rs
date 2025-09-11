@@ -155,6 +155,7 @@ struct Request {
     stack_len: String,
     function_registry: Vec<FunctionRegistryEntry>,
     loader_function_registry: Vec<FunctionRegistryEntry>,
+    regs: Vec<String>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -176,7 +177,7 @@ pub struct LeanVmState {
 
 pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, rodata: Vec<u8>, code_vaddr: u64, rodata_vaddr: u64, pc: u64, version: u8, remaining_steps: u64,
                         max_call_depth: u64, stack_len: u64,
-                        function_registry: Vec<FunctionRegistryEntry>,  loader_function_registry: Vec<FunctionRegistryEntry>)
+                        function_registry: Vec<FunctionRegistryEntry>,  loader_function_registry: Vec<FunctionRegistryEntry>, regs: Vec<u64>)
                         -> Result<LeanVmState, String> {
     lean_initialize_once();
     let request = Request {
@@ -192,6 +193,7 @@ pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, rodata: Vec<u8>, code_vad
         stack_len: stack_len.to_string(),
         function_registry: function_registry,
         loader_function_registry: loader_function_registry,
+        regs: regs.iter().map(|s| s.to_string()).collect(),
     };
     match serde_json::to_string(&request) {
         Ok(json_string) => {
