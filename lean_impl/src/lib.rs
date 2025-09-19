@@ -157,37 +157,52 @@ struct Request {
     stack_len: String,
     function_registry: Vec<FunctionRegistryEntry>,
     loader_function_registry: Vec<FunctionRegistryEntry>,
-    regs: Vec<String>
+    regs: Vec<String>,
+    program_id: Vec<u8>,
+    rent_bytes: Vec<u8>,
+    fees_bytes: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct Response {
     status: String,
     regs : Vec<String>,
+    memory : Vec<u8>,
     pc : String,
     program_result : String,
     halted : bool,
+    program_log : Vec<String>,
+    stack_len : String,
+    stack_non_zeroes_pos : Vec<String>,
+    stack_non_zeroes_vals : Vec<u8>,
+    heap : Vec<u8>,
 }
 
+#[derive(Debug)]
 pub struct LeanVmState {
     pub input: Vec<u8>,
     pub regs: Vec<u64>,
+    pub memory : Vec<u8>,
     pub pc: u64,
     pub halted: bool,
     pub program_result: String,
+    pub program_log: Vec<String>,
+    pub stack: Vec<u8>,
+    pub heap: Vec<u8>,
 }
 
-pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, rodata: Vec<u8>, code_vaddr: u64, rodata_vaddr: u64, pc: u64, version: u8, remaining_steps: u64,
+pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, rodata: Vec<u8>, stack: Vec<u8>, heap: Vec<u8>,code_vaddr: u64, rodata_vaddr: u64, pc: u64, version: u8, remaining_steps: u64,
                         max_call_depth: u64, stack_len: u64,
-                        function_registry: Vec<FunctionRegistryEntry>,  loader_function_registry: Vec<FunctionRegistryEntry>, regs: Vec<u64>)
+                        function_registry: Vec<FunctionRegistryEntry>,  loader_function_registry: Vec<FunctionRegistryEntry>, regs: Vec<u64>,
+                        program_id: Option<Vec<u8>>, rent_bytes: Option<Vec<u8>>, fees_bytes: Option<Vec<u8>>)
                         -> Result<LeanVmState, String> {
     lean_initialize_once();
     let request = Request {
         code: code,
         input: input.clone(),
         rodata: rodata,
-        stack: Vec::<u8>::new(),
-        heap: Vec::<u8>::new(),
+        stack,
+        heap,
         code_vaddr: code_vaddr.to_string(),
         rodata_vaddr : rodata_vaddr.to_string(),
         pc: pc.to_string(),
@@ -198,24 +213,37 @@ pub unsafe fn lean_test(code: Vec<u8>, input: Vec<u8>, rodata: Vec<u8>, code_vad
         function_registry: function_registry,
         loader_function_registry: loader_function_registry,
         regs: regs.iter().map(|s| s.to_string()).collect(),
+        program_id: program_id.unwrap_or_default(),
+        rent_bytes: rent_bytes.unwrap_or_default(),
+        fees_bytes: fees_bytes.unwrap_or_default(),
     };
     match serde_json::to_string(&request) {
         Ok(json_string) => {
             unsafe {
-                println!("{}", json_string);
+                // println!("{}", json_string);
                 let request_json = CString::new(json_string).expect("failed to make CString");
                 let lean_request_json = lean_mk_string(request_json.as_ptr());
                 let lean_response_json = test_request_response(lean_request_json);
                 let response_json = CStr::from_ptr(lean_string_cstr(lean_response_json)).to_str().expect("Invalid UTF-8");
-                println!("Response.json {}", response_json);
+                // println!("Response.json {}", response_json);
                 let response : Response = serde_json::from_str(response_json).expect("failed to json deserialize");
-                println!("Response.status = {}", response.status);
+                // println!("Response.status = {}", response.status);
+                let mut stack = vec![0u8; response.stack_len.parse::<usize>().unwrap()];
+                assert_eq!(response.stack_non_zeroes_vals.len(), response.stack_non_zeroes_vals.len());
+                for (idx, val) in response.stack_non_zeroes_pos.iter().zip(response.stack_non_zeroes_vals.iter()) {
+                    stack[idx.parse::<usize>().unwrap()] = *val;
+                }
+
                 Ok(LeanVmState {
                     input: input,
                     regs: response.regs.iter().map(|s| s.parse::<u64>().unwrap_or_else(|_| 0)).collect(),
+                    memory: response.memory.clone(),
                     pc: response.pc.parse::<u64>().unwrap_or_else(|_| 0),
                     halted: response.halted,
                     program_result: response.program_result,
+                    program_log: response.program_log,
+                    stack,
+                    heap: response.heap,
                 })
             }
         }

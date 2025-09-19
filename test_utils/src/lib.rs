@@ -341,10 +341,11 @@ macro_rules! test_interpreter_and_jit {
                 ).collect();
 
             lean_vm_state = lean_impl::lean_test(code_bytes.to_vec(), $mem.to_vec(), $executable.get_ro_section().to_vec(),
+                vec![], vec![],
                 code_vaddr as u64, $executable.get_ro_region().vm_addr, $executable.get_entrypoint_instruction_offset() as u64,
                 version_num, context_object.remaining as u64,
                 $executable.get_config().max_call_depth as u64, $executable.get_config().stack_size() as u64,
-                function_registry_vec, loader_function_registry_vec, regs);
+                function_registry_vec, loader_function_registry_vec, regs, None, None, None);
         }
         match lean_vm_state {
             Ok(vm_state) => {
